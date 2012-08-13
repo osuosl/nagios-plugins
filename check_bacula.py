@@ -1,9 +1,7 @@
 #! /usr/bin/env python
 
-# Bacula Check for Nagios
 #
-# Author: Trevor Bramwell
-# Date: Fri May  4 11:34:32 PDT 2012
+# Bacula Checks for Nagios
 #
 import sys
 
@@ -16,16 +14,19 @@ from pynagios import Plugin
 #  CamelCase in python
 import MySQLdb as mysqldb
 
-# Set the DB for the checks to run on
-DB = 'bacula'
-
 
 class BaculaCheck(Plugin):
     """
     Nagios plugin to check if bacula is running on host.
     """
+    database = make_option("-d", "--database",
+        dest="database",
+        type="string",
+        default="bacula",
+        help="bacula database title (default: 'bacula')",)
     hours = make_option("--hours", type="int",
         dest="hours",
+        default="72",
         help="limit check to within last HOURS")
     job = make_option("-j", "--job", dest="job",
         help="bacula job to check")
@@ -54,26 +55,12 @@ class BaculaCheck(Plugin):
         conn_fields = dict((k, v) for (k, v) in vars(opts).items()
             if v is not None and k in ('host', 'user', 'passwd', 'port'))
 
-        # Calculate how far back (in hours) to check, if passed
-        #  default to begining of epoch
-        starttime = datetime.now()
-        endtime = datetime.fromtimestamp(0)
-
-        if opts.hours:
-            endtime = starttime - timedelta(hours=opts.hours)
-
-        # Format string: MySQL only takes YYYY-MM-DD HH:MM:SS strings,
-        #  but datetime includes microseconds. This removes microseconds.
-        fstr = "%Y-%m-%d %X"
-        starttime = starttime.strftime(fstr)
-        endtime = endtime.strftime(fstr)
-
         if opts.verbosity > 2:
             print conn_fields
 
         # Create db connection
         try:
-            conn = mysqldb.connect(db=DB, **conn_fields)
+            conn = mysqldb.connect(db=opts.database, **conn_fields)
         except mysqldb.Error, e:
             print (e.args[0], e.args[1])
             sys.exit(1)
@@ -83,13 +70,12 @@ class BaculaCheck(Plugin):
         if hasattr(opts, 'job'):
             cursor.execute(
                 """
-                SELECT count(*) as 'count'
-                from Job
-                where (Name='%s') and
-                (JobStatus='T') and (
-                    (EndTime <= '%s') and (EndTime >= '%s')
-                )
-                """ % (opts.job, starttime, endtime)
+                SELECT COUNT(*) as 'count'
+                FROM Job
+                WHERE (Name='%(job)s') AND (JobStatus='T')
+                  AND (EndTime <= NOW() AND
+                     EndTime >= SUBDATE(NOW(), INTERVAL %(hours)s HOUR))
+                """ % (vars(opts))
             )
 
             # Get job count
