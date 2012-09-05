@@ -22,7 +22,7 @@ import sys
 from datetime import datetime, timedelta
 
 from optparse import make_option
-from pynagios import Plugin
+from pynagios import Plugin, Response, CRITICAL
 
 # Some day I will punch someone in the face for using this
 #  CamelCase in python
@@ -76,8 +76,7 @@ class BaculaCheck(Plugin):
         try:
             conn = mysqldb.connect(db=opts.database, **conn_fields)
         except mysqldb.Error, e:
-            print (e.args[0], e.args[1])
-            sys.exit(1)
+            return Response(CRITICAL, e.args[1])
 
         cursor = conn.cursor()
 
