@@ -74,28 +74,38 @@ class BaculaCheck(Plugin):
         except mysqldb.Error, e:
             return Response(CRITICAL, e.args[1])
 
+        # Create a cursor, given the db connection succeeded
         cursor = conn.cursor()
 
-        if hasattr(opts, 'job'):
-            cursor.execute(
-                """
-                SELECT COUNT(*) as 'count'
-                FROM Job
-                WHERE (Name='%(job)s') AND (JobStatus='T')
-                  AND (EndTime <= NOW() AND
-                     EndTime >= SUBDATE(NOW(), INTERVAL %(hours)s HOUR))
-                """ % (vars(opts))
-            )
+        if hasattr(opts, 'job') and opts.job is not None:
+            status = self.check_single_job(cursor, opts)
 
-            # Get job count
-            jobs = cursor.fetchone()[0]
+            return self.response_for_value(status,
+                "Found %s successful Bacula jobs for %s" % (status, opts.job))
+        else:
+            return Response(CRITICAL, "No job provided to script")
 
         cursor.close()
         conn.close()
 
-        #return Response(pynagios.OK, "Everything is ok!")
-        return self.response_for_value(jobs,
-            "Found %s successful Bacula jobs for %s" % (jobs, opts.job))
+
+    def check_single_job(self, cursor, opts):
+        """
+        Given a single job, get a count of it's status in the last given hours
+        """
+        cursor.execute(
+            """
+            SELECT COUNT(*) as 'count'
+            FROM Job
+            WHERE (Name='%(job)s') AND (JobStatus='T')
+              AND (EndTime <= NOW() AND
+                 EndTime >= SUBDATE(NOW(), INTERVAL %(hours)s HOUR))
+            """ % (vars(opts))
+        )
+
+        # Get and return job count
+        status = cursor.fetchone()[0]
+        return status
 
 if __name__ == "__main__":
     # Build and Run the Nagios Plugin
