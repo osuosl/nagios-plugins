@@ -71,8 +71,8 @@ class BaculaCheck(Plugin):
         # Create db connection
         try:
             conn = mysqldb.connect(db=opts.database, **conn_fields)
-        except mysqldb.Error, e:
-            return Response(CRITICAL, e.args[1])
+        except mysqldb.Error, err:
+            return Response(CRITICAL, err.args[1])
 
         # Create a cursor, given the db connection succeeded
         cursor = conn.cursor()
