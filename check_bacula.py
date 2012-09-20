@@ -17,10 +17,6 @@
 #
 # Bacula Checks for Nagios
 #
-import sys
-
-from datetime import datetime, timedelta
-
 from optparse import make_option
 from pynagios import Plugin, Response, CRITICAL
 
