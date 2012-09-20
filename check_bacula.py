@@ -79,7 +79,7 @@ class BaculaCheck(Plugin):
         cursor = conn.cursor()
 
         if hasattr(opts, 'job') and opts.job is not None:
-            status = self.check_single_job(cursor, opts)
+            status = check_single_job(cursor, opts)
 
             return self.response_for_value(status,
                 "Found %s successful Bacula jobs for %s" % (status, opts.job))
@@ -90,23 +90,24 @@ class BaculaCheck(Plugin):
         conn.close()
 
 
-    def check_single_job(self, cursor, opts):
+def check_single_job(cursor, opts):
+    """
+    Given a single job, get a count of it's status in the last given hours
+    """
+    cursor.execute(
         """
-        Given a single job, get a count of it's status in the last given hours
-        """
-        cursor.execute(
-            """
-            SELECT COUNT(*) as 'count'
-            FROM Job
-            WHERE (Name='%(job)s') AND (JobStatus='T')
-              AND (EndTime <= NOW() AND
-                 EndTime >= SUBDATE(NOW(), INTERVAL %(hours)s HOUR))
-            """ % (vars(opts))
-        )
+        SELECT COUNT(*) as 'count'
+        FROM Job
+        WHERE (Name='%(job)s') AND (JobStatus='T')
+          AND (EndTime <= NOW() AND
+             EndTime >= SUBDATE(NOW(), INTERVAL %(hours)s HOUR))
+        """ % (vars(opts))
+    )
 
-        # Get and return job count
-        status = cursor.fetchone()[0]
-        return status
+    # Get and return job count
+    status = cursor.fetchone()[0]
+    return status
+
 
 if __name__ == "__main__":
     # Build and Run the Nagios Plugin
