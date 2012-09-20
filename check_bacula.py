@@ -1,5 +1,10 @@
 #! /usr/bin/env python
 
+"""Check Bacula
+ A nagios plugin using the pynagios module. It is used to check
+ bacula for the completion of a single bacula job.
+"""
+
 # Copyright 2012 Oregon State University
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,14 +19,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#
-# Bacula Checks for Nagios
-#
+
 from optparse import make_option
 from pynagios import Plugin, Response, CRITICAL
 
-# Some day I will punch someone in the face for using this
-#  CamelCase in python
 import MySQLdb as mysqldb
 
 
