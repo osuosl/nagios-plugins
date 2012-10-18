@@ -21,9 +21,20 @@
 
 
 from optparse import make_option
-from pynagios import Plugin, Response, CRITICAL
+try:
+    from pynagios import Plugin, Response, CRITICAL
+except ImportError, err:
+    err1 = "CRIT: %s" % err
 
-import MySQLdb as mysqldb
+try:
+    import MySQLdb as mysqldb
+    from MySQLdb import cursors
+except ImportError, err2:
+    print "%s; %s" % (err1, err2)
+else:
+    print "%s" % err1
+finally:
+    exit()
 
 
 class BaculaCheck(Plugin):
@@ -71,21 +82,29 @@ class BaculaCheck(Plugin):
 
         # Create db connection
         try:
-            conn = mysqldb.connect(db=opts.database, **conn_fields)
+            self.conn = mysqldb.connect(db=opts.database,
+                cursorclass=mysqldb.cursors.DictCursor,
+                **conn_fields)
         except mysqldb.Error, err:
             return Response(CRITICAL, err.args[1])
 
         # Create a cursor, given the db connection succeeded
-        cursor = conn.cursor()
+        cursor = self.conn.cursor()
 
         if hasattr(opts, 'job') and opts.job is not None:
+            # Check a single job
             status = check_single_job(cursor, opts)
 
             return self.response_for_value(status,
                 "Found %s successful Bacula jobs for %s" % (status, opts.job))
         else:
-            return Response(CRITICAL, "No job provided to script")
+            # Check all jobs
+            status = check_all_jobs(cursor, opts)
+            return self.response_for_value(status["status"],
+                    "%(status)s%% jobs completed | "
+                    "(%(success)s/%(total)s) jobs. Failed jobs: %(errors)s" % status)
 
+        # Clean up!
         cursor.close()
         conn.close()
 
@@ -105,9 +124,59 @@ def check_single_job(cursor, opts):
     )
 
     # Get and return job count
-    status = cursor.fetchone()[0]
+    status = cursor.fetchone()["count"]
     return status
 
+def check_all_jobs(cursor, opts):
+    """
+    Check all the jobs from bacula and list the ones that have failed
+    recently
+    """
+    cursor.execute(
+        """
+        select (
+            select COUNT(JobId)
+            from Job
+            where JobStatus = 'T' and
+                EndTime >= DATE_SUB(CURDATE(), INTERVAL %(hours)s HOUR)
+            )
+        as 'success', (
+            select count(JobId)
+            from Job
+            where EndTime >= DATE_SUB(CURDATE(), INTERVAL %(hours)s HOUR)
+        ) as 'total';
+        """ % (vars(opts))
+    )
+
+    # Grab successful and total jobs
+    row = cursor.fetchone()
+    success = row["success"]
+    total = row["total"]
+
+    cursor.execute(
+        """
+        select Name
+        from Job
+        where JobStatus != 'T' and
+            EndTime >= DATE_SUB(CURDATE(), INTERVAL %(hours)s HOUR)
+        group by Name;
+        """ % (vars(opts))
+    )
+
+    # Grab job Names
+    jobs = cursor.fetchall()
+    errored_jobs = [job["Name"] for job in jobs]
+
+    try:
+        status = int((success/float(total))*100)
+    except ZeroDivisionError:
+        status = 0
+
+    return dict(
+        status=status,
+        success=success,
+        total=total,
+        errors=", ".join(errored_jobs))
 
 if __name__ == "__main__":
     # Build and Run the Nagios Plugin
