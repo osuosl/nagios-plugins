@@ -93,20 +93,23 @@ class BaculaCheck(Plugin):
 
         if hasattr(opts, 'job') and opts.job is not None:
             # Check a single job
-            status = check_single_job(cursor, opts)
+            value = check_single_job(cursor, opts)
 
-            return self.response_for_value(status,
-                "Found %s successful Bacula jobs for %s" % (status, opts.job))
+            status = self.response_for_value(value,
+                "Found %s successful Bacula jobs for %s" % (value, opts.job))
         else:
             # Check all jobs
-            status = check_all_jobs(cursor, opts)
-            return self.response_for_value(status["status"],
+            value = check_all_jobs(cursor, opts)
+            status = self.response_for_value(value["status"],
                     "%(status)s%% jobs completed | "
-                    "(%(success)s/%(total)s) jobs. Failed jobs: %(errors)s" % status)
+                    "(%(success)s/%(total)s) jobs."
+                    " Failed jobs: %(errors)s" % value)
 
         # Clean up!
         cursor.close()
         conn.close()
+
+        return status
 
 
 def check_single_job(cursor, opts):
