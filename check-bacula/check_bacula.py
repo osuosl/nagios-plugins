@@ -20,22 +20,24 @@
 # limitations under the License.
 
 
+ERR=[]
+
 from optparse import make_option
 try:
     from pynagios import Plugin, Response, CRITICAL
 except ImportError, err:
-    err1 = "CRIT: %s" % err
+    ERR.append("%s" % err)
 
 try:
     import MySQLdb as mysqldb
     from MySQLdb import cursors
-except ImportError, err2:
-    print "%s; %s" % (err1, err2)
-else:
-    print "%s" % err1
-finally:
-    exit()
+except ImportError, err:
+    ERR.append("%s" % err)
 
+# Print 'Crit:' followed by all errors
+if(ERR):
+    print "%s %s" % ("CRIT:","; ".join(ERR))
+    exit()
 
 class BaculaCheck(Plugin):
     """
@@ -107,7 +109,7 @@ class BaculaCheck(Plugin):
 
         # Clean up!
         cursor.close()
-        conn.close()
+        self.conn.close()
 
         return status
 
